@@ -22,7 +22,7 @@ type Docs []struct {
 	ProductUri string `json:"productUri"`
 	Meta       struct {
 		Source string `json:"source"`
-	//	Test string `json:"test"`
+		// Test string `json:"test"`
 	} `json:"meta"`
 	General    struct {
 		Manufacturer string   `json:"manufacturer"`
@@ -78,17 +78,6 @@ type Image struct {
 	Longdesc string `json:"longdesc"`
 }
 
-// type Node struct {
-// 	prev *Node
-// 	next *Node
-// 	key  interface{}
-// }
-//
-// type List struct {
-// 	head *Node
-// 	tail *Node
-// }
-
 type PatchId struct {
 	Data []struct {
 		Id      string `json:"_id"`
@@ -107,18 +96,6 @@ type PatchUpdatedAt struct {
 		UpdatedAt string `json:"updated_at"`
 	} `json:"data"`
 }
-
-// type SnsMessage struct {
-// 	Type             string    `json:"Type"`
-// 	MessageID        string    `json:"MessageId"`
-// 	TopicArn         string    `json:"TopicArn"`
-// 	Message          string    `json:"Message"`
-// 	Timestamp        time.Time `json:"Timestamp"`
-// 	SignatureVersion string    `json:"SignatureVersion"`
-// 	Signature        string    `json:"Signature"`
-// 	SigningCertURL   string    `json:"SigningCertURL"`
-// 	UnsubscribeURL   string    `json:"UnsubscribeURL"`
-// }
 
 type CrsTrims struct {
 	ProdType         string  `csv:"ProdType"`
@@ -175,11 +152,11 @@ type CrsLogic struct {
 }
 
 type CrsPhotoGallery struct {
-	PhotoMapId int      `csv:"PhotoMapId"`
-	TrimId     string   `csv:"TrimId"`
-	PackageId  string   `csv:"PackageId"`
+	PhotoMapId int      `csv:"photomapid"`
+	TrimId     string   `csv:"trimid"`
+	PackageId  string   `csv:"packageid"`
 	PhotoName  string   `csv:"photoname"`
-	Tags       string    `csv:"Tags"`
+	Tags       string    `csv:"tags"`
 }
 
 type CrsPackages struct {
@@ -206,6 +183,7 @@ type CrsSpecParentNames struct {
 type CrsCategories struct {
 	TrimId       string `csv:"TrimId"`
   Value        string `csv:"Value"`
+	ModelName     string  `csv:"ModelName"`
   ProdType     string  `csv:"ProdType"`
   MappedCategory string `csv:"mappedCategory"`
 }
@@ -265,9 +243,12 @@ func postJson() {
 		idStr, _ := getSpecId(docs,s)
 		mJ, _ := json.Marshal(docs[s])
 		fmt.Println(idStr)
-		if idStr != "" {
-				statCode, bodyString = patchRecord(idStr, mJ)
-		} else {
+		// if idStr != "" {
+		// 		statCode, bodyString = patchRecord(idStr, mJ)
+		// } else {
+		// 	statCode, bodyString = postRecord(mJ)
+		// }
+		if idStr == ""{
 			statCode, bodyString = postRecord(mJ)
 		}
 		fmt.Println(statCode)
@@ -280,7 +261,7 @@ func postJson() {
 		// 	writer.Write(csvData)
 		// 	writer.Flush()
 		// }
-		if statCode != "200 OK" && statCode != "201 Created" {
+		if statCode != "200 OK" && statCode != "201 Created" && statCode != "" {
 				if docs[s].Id == "" {
 					docs[s].Id = strconv.Itoa(s)
 				}
@@ -320,21 +301,21 @@ func countStatus(statCode string, link map[string]int) map[string]int {
 	return link
 }
 
-func patchRecord(idStr string, mJ []byte) (string, string) {
-	statCode := ""
-	patchEndPoint := url + "/" + idStr
-	req, err := http.NewRequest("PATCH", patchEndPoint, bytes.NewBuffer(mJ))
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	bodyBytes, _ := ioutil.ReadAll(resp.Body)
-	bodyString := string(bodyBytes)
-	statCode = resp.Status
-	return statCode, bodyString
-}
+// func patchRecord(idStr string, mJ []byte) (string, string) {
+// 	statCode := ""
+// 	patchEndPoint := url + "/" + idStr
+// 	req, err := http.NewRequest("PATCH", patchEndPoint, bytes.NewBuffer(mJ))
+// 	req.Header.Set("Content-Type", "application/json")
+// 	client := &http.Client{}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
+// 	bodyString := string(bodyBytes)
+// 	statCode = resp.Status
+// 	return statCode, bodyString
+// }
 
 func postRecord(mJ []byte) (string, string) {
 	statCode := ""
@@ -434,7 +415,7 @@ func getCtFromTrimsFile() []CrsTrims{
 	fmt.Println("getCtFromTrimsFile");
 	ct := []CrsTrims{}
 
-	trimsFile, err := os.Open("Data/PS_Trims.csv")
+	trimsFile, err := os.Open("Data_2019_01_17/PS_Trims.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -453,7 +434,7 @@ func getCfFromFeaturesFile() []CrsFeatures{
 	fmt.Println("getCfFromFeaturesFile");
 	cf := []CrsFeatures{}
 
-	featuresFile, err := os.Open("Data/PS_Features.csv")
+	featuresFile, err := os.Open("Data_2019_01_17/PS_Features.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -471,7 +452,7 @@ func getCfFromFeaturesFile() []CrsFeatures{
 func getCpFromPackagesFile() []CrsPackages{
 	cp := []CrsPackages{}
 
-	packagesFile, err := os.Open("Data/pkgs.csv")
+	packagesFile, err := os.Open("Data_2019_01_17/pkgs.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -490,7 +471,7 @@ func getCsdFromSampleDataFile() []CrsSample{
 	fmt.Println("getCsdFromSampleDataFile");
 	csd := []CrsSample{}
 
-	sampleFile, err := os.Open("Data/PS_SampleData.csv")
+	sampleFile, err := os.Open("Data_2019_01_17/PS_SampleData.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -510,7 +491,7 @@ func getCoFromOptionsFile() []CrsOptions{
 	fmt.Println("getCoFromOptionsFile");
 	co := []CrsOptions{}
 
-	optionsFile, err := os.Open("Data/PS_Options.csv")
+	optionsFile, err := os.Open("Data_2019_01_17/PS_Options.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -529,7 +510,7 @@ func getCpgFromPhotoGalleryFile() []CrsPhotoGallery{
 	fmt.Println("getCpgFromPhotoGalleryFile");
 	cpg := []CrsPhotoGallery{}
 
-	PhotoGalleryFile, err := os.Open("Data/photogallery.csv")
+	PhotoGalleryFile, err := os.Open("Data_2019_01_17/photogallery.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -548,7 +529,7 @@ func getCsFromSpecsFile() []CrsSpecs{
 	fmt.Println("getCsFromSpecsFile");
 	cs := []CrsSpecs{}
 
-	specsFile, err := os.Open("Data/PS_Specs_withpkgs.csv")
+	specsFile, err := os.Open("Data_2019_01_17/PS_Specs_withpkgs.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -568,7 +549,7 @@ func getCaFromCategoryMappingFile() []CrsCategories{
 	fmt.Println("getCaFromCategoriesAvailableFile");
 	ca := []CrsCategories{}
 
-	CategoryMappingFile, err := os.Open("Data/CategoryMapping.csv")
+	CategoryMappingFile, err := os.Open("Data_2019_01_17/CategoryMapping.csv")
  	if err != nil {
  		fmt.Println(err)
  	}
@@ -579,7 +560,6 @@ func getCaFromCategoryMappingFile() []CrsCategories{
 	if err := gocsv.UnmarshalFile(CategoryMappingFile, &ca); err != nil {
 		panic(err)
 	}
-  // fmt.Println(ca)
 	return ca
 }
 
@@ -600,8 +580,6 @@ func getCaFromCategoryMappingFile() []CrsCategories{
 // 	}
 // 	return mu
 // }
-
-
 
 func getMappedCategory(cat string, trimId string) string{
 	newCat:=""
@@ -653,17 +631,6 @@ func charRemover(oldString string, oldChar string, newChar string) string {
 
 func buildJson(){
 	fmt.Println("im here")
-	// deleteFile("nonExistingCategories.csv")
-	// createFile("nonExistingCategories.csv")
-	// f2, err := os.OpenFile("nonExistingCategories.csv", os.O_WRONLY|os.O_APPEND, 0644)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer f2.Close()
-	// writer2 := csv.NewWriter(f2)
-
-	// var link map[string]int
-	// link = make(map[string]int)
 	ct:=getCtFromTrimsFile()
 	cf:=getCfFromFeaturesFile()
 	csd:=getCsdFromSampleDataFile()
@@ -671,7 +638,7 @@ func buildJson(){
 	cs :=getCsFromSpecsFile()
 	cpg :=getCpgFromPhotoGalleryFile()
 	d := make(Docs, len(ct), len(ct) )
-	flag := false
+	// flag := false
 	// loop thrugh each trim (model) and build json
 	for t := 0; t < len(ct); t++ {
 		// flag:= checkIfOemUpdated(ct[t].ManufacturerName, ct[t].ModelName)
@@ -681,7 +648,7 @@ func buildJson(){
 			fmt.Println("trim id is" , trimId)
 			fmt.Println("\n")
 			d[t].Meta.Source = "Powersports"
-			//d[t].Meta.Test = "Test Powersports"
+			// d[t].Meta.Test = "Test Powersports-sneha-2019-01-24"
 			d[t].General.Manufacturer = ct[t].ManufacturerName
 			d[t].General.Model = ct[t].ModelName + " "+ct[t].TrimName
 			d[t].General.Year = int(math.Round(ct[t].ModelYear))
@@ -697,15 +664,6 @@ func buildJson(){
 							d[t].General.Category=mappedCategory
 							d[t].General.Description = "Description: " + d[t].General.Manufacturer+ " - " +mappedCategory
 						}
-						// if d[t].General.Category == ""{
-						// 	for key, value := range link {
-						// 		var csvData []string
-						// 		csvData = append(csvData, key)
-						// 		csvData = append(csvData, strconv.Itoa(value))
-						// 		writer2.Write(csvData)
-						// 		writer2.Flush()
-						// 	}
-						// }
 						if csd[sd].AttributeName == "Manufacturer Country" {
 						 	d[t].General.Countries = append(d[t].General.Countries,csd[sd].Value)
 					 	} else{
@@ -717,39 +675,41 @@ func buildJson(){
 						}else {
 							d[t].General.Subcategory = d[t].General.Category
 						}
-
-            if csd[sd].AttributeName == "Product Type" && csd[sd].Value == "Tractors"{
-						 flag=true
-						}else if csd[sd].AttributeName == "Product Type" && csd[sd].Value != "Tractors"{
-						 flag=false
-						 }
-
 						//extracting images
 						folder_name:= ""
 						image_name := ""
-						if csd[sd].AttributeName == "Photo Name"&& flag == true{
-							image_name = csd[sd].Value
-					 		folder_name = "800x400"
-					 		imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/CRS+Datafeed+tractor+images+2018-06-14/"+folder_name+"/"+image_name
-					 		img := Image{}
-					 		img.Src=imgLinkAWS
-					 		img.Src=strings.Replace(imgLinkAWS," ","%20",-1)
-					 		img.Src = strings.Replace(img.Src," ","%20",-1)
-					 		d[t].Images=append(d[t].Images,img)
-					 	}
+						// if csd[sd].AttributeName == "Photo Name"&& flag == true{
+						// 	image_name = csd[sd].Value
+					 	// 	folder_name = "800x400"
+					 	// 	imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/CRS+Datafeed+tractor+images+2018-11-29/"+folder_name+"/"+image_name
+					 	// 	img := Image{}
+					 	// 	img.Src=imgLinkAWS
+					 	// 	img.Src=strings.Replace(imgLinkAWS," ","%20",-1)
+					 	// 	img.Src = strings.Replace(img.Src," ","%20",-1)
+					 	// 	d[t].Images=append(d[t].Images,img)
+					 	// }
 					  //}
 
-					if csd[sd].AttributeName == "Photo Name" && flag == false {
+					if csd[sd].AttributeName == "Photo Name" {
 							image_name = csd[sd].Value
 							folder_name = "800x400"
-							imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/CRS+Datafeed+powersport+images+2018-06-14/"+folder_name+"/"+image_name
+							imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/CRS+Datafeed+powersport+images+2019-01-04/"+folder_name+"/"+image_name
 	 						img := Image{}
 	 						img.Src=imgLinkAWS
 							img.Src=strings.Replace(imgLinkAWS," ","%20",-1)
 	 					  img.Src = strings.Replace(img.Src," ","%20",-1)
 	 					  d[t].Images=append(d[t].Images,img)
 					 }
-
+					 if csd[sd].AttributeName == "Photo Name (Floorplan)"{
+					 	 image_name = csd[sd].Value
+					 	 folder_name = "Floorplan800"
+					 	 imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/CRS+Datafeed+powersport+images+2019-01-04/"+folder_name+"/"+image_name
+					 	 img := Image{}
+					 	 img.Src=imgLinkAWS
+					 	 img.Src=strings.Replace(imgLinkAWS," ","%20",-1)
+					 	 img.Src = strings.Replace(img.Src," ","%20",-1)
+					 	 d[t].Images=append(d[t].Images,img)
+					 }
 					}
 				}
 			}
@@ -758,9 +718,10 @@ func buildJson(){
 			fmt.Println("gallery build");
 			for pg :=0; pg< len(cpg); pg++{
 				if cpg[pg].TrimId == trimId {
+					fmt.Println(cpg[pg].PhotoName)
 					image_name := cpg[pg].PhotoName
-					folder_name := "Gallery"
-					imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-rv-images/"+folder_name+"/"+image_name
+					folder_name := "gallery"
+					imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/"+folder_name+"/"+image_name
 				 img := Image{}
 				 img.Src=imgLinkAWS
 				 img.Src=strings.Replace(imgLinkAWS," ","%20",-1)
@@ -1052,40 +1013,6 @@ func buildJson(){
 						}
 				}
 			}
-
-
-			//extracting images
-			// var files []string
-			// err := filepath.Walk("sorted_images", visit(&files))
-			// if err != nil {
-			// 		panic(err)
-			// }
-			// for _, file := range files {
-			// 	imgLinkAWS:=strings.Replace(file,"sorted_images","https://s3.amazonaws.com/cws-cdn-east/crs-rv-image",-1)
-			// 	imgLink:=strings.Replace(file,"sorted_images/","",1)
-			// 	imageLinkArr:=strings.Split(imgLink,"/")
-			// 	if(strings.Contains(imgLinkAWS,"jpg") || strings.Contains(imgLinkAWS,"jpeg") || strings.Contains(imgLinkAWS,"gif") || strings.Contains(imgLinkAWS,"png")){
-			// 		if(len(imageLinkArr) ==3){
-			// 			temp1 := strings.Replace(strings.ToLower(imageLinkArr[0])," ","",-1)
-			// 			temp2:= strings.Replace(strings.ToLower(d[t].General.Oem)," ","",-1)
-			// 			temp3:=strings.Replace(strings.ToLower(imageLinkArr[1])," ","",-1)
-			// 			temp4:= strings.Replace(strings.ToLower(d[t].General.Manufacturer)," ","",-1)
-			//
-			// 			if((imageLinkArr[0]==d[t].General.Oem || temp1==temp2) && (imageLinkArr[1]==d[t].General.Manufacturer || temp3==temp4) && strings.Contains(imageLinkArr[2],d[t].General.Model)){
-			// 					img := Image{}
-			// 				 img.Src=strings.Replace(imgLinkAWS," ","%20",-1)
-			// 				 d[t].Images=append(d[t].Images,img)
-			// 			}
-			// 		}
-			// 		if(len(imageLinkArr) ==2){
-			// 			if(imageLinkArr[0]==d[t].General.Oem){
-			// 				img := Image{}
-			// 			 	img.Src=strings.Replace(imgLinkAWS," ","%20",-1)
-			// 			 	d[t].Images=append(d[t].Images,img)
-			// 			}
-			// 		}
-			// 	}
-			// }
 			out, _ := json.Marshal(d)
 			err := ioutil.WriteFile("./out.json", out, 0644)
 			if err != nil {
