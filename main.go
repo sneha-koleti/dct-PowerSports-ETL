@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"strconv"
+	"errors"
   "log"
   "path/filepath"
 	"github.com/gocarina/gocsv"
@@ -22,14 +23,13 @@ type Docs []struct {
 	ProductUri string `json:"productUri"`
 	Meta       struct {
 		Source string `json:"source"`
-		// Test string `json:"test"`
+		Test string `json:"test"`
 	} `json:"meta"`
 	General    struct {
 		Manufacturer string   `json:"manufacturer"`
 		Model        string   `json:"model"`
 		Year         int      `json:"year"`
 		Msrp         float64  `json:"msrp"`
-	//	Oem          string   `json:"oem"`
 		Category     string   `json:"category"`
 		Subcategory  string   `json:"subcategory"`
 		Description  string   `json:"description"`
@@ -193,7 +193,14 @@ type ManufacturersUpdated struct{
 	ManufacturerName string `csv:"ManufacturerName"`
 
 }
-var url = "https://api.prod.cwsplatform.com/specs"
+// var url = "https://api.stage.cwsplatform.com/specs"
+// Token ...
+type Token struct {
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+	TokenType   string `json:"token_type"`
+	Scope       string `json:"scope"`
+}
 
 func createFile(path string) {
 	// detect if file exists
@@ -214,12 +221,96 @@ func deleteFile(path string) {
 	os.Remove(path)
 }
 
+var url string
+
+func getAPI() string{
+	fmt.Print("Enter api discordia or igneous: ")
+	var api string
+	fmt.Scanln(&api)
+
+	fmt.Print("Enter api type stage or prod: ")
+	var apiType string
+	fmt.Scanln(&apiType)
+
+	if (api == "igneous"){
+		if apiType == "stage"{
+			url = "https://api.stage.cwsplatform.com/specs"
+		}else if apiType == "prod"{
+			url = "https://api.prod.cwsplatform.com/specs"
+		}
+	}else if api == "discordia"{
+			if apiType == "stage"{
+				url = "http://127.0.0.1:5000/v1/model/"
+			}else if apiType == "prod"{
+				url = "https://discordia.blackbook.tilabs.tech/v1/models"
+			}
+		}else{
+			err :=errors.New("Please enter valid input")
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		return url
+	}
+
+	func ObtainNebulousToken() string {
+		url := os.Getenv("NEB_TOKEN_ENDPOINT")
+
+		clientID := os.Getenv("NEB_CLIENT_ID")
+		clientSecret := os.Getenv("NEB_CLIENT_SECRET")
+
+		nebulousToken := ""
+
+		payload := strings.NewReader("------WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: form-data; name=\"client_id\"\r\n\r\n" + clientID + "\r\n------WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: form-data; name=\"client_secret\"\r\n\r\n" + clientSecret + "\r\n------WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: form-data; name=\"grant_type\"\r\n\r\nclient_credentials\r\n------WebKitFormBoundary7MA4YWxkTrZu0gW--")
+		req, err := http.NewRequest("POST", url, payload)
+		if err != nil {
+			log.Println("An issue occured while creating the new request to obtain a nebulous token, the reported error was: " + err.Error())
+			return nebulousToken
+		}
+		req.Header.Add("content-type", "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW")
+		req.Header.Add("Cache-Control", "no-cache")
+
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Println("An issue arose while attempting to capture the response from nebulous to obtain a token, the reported error was: " + err.Error())
+			res.Body.Close()
+			return nebulousToken
+		}
+
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Println("An issue occurred during the reading of the response body, the reported error was: " + err.Error())
+			res.Body.Close()
+			return nebulousToken
+		}
+		defer res.Body.Close()
+
+		var token Token
+
+		err = json.Unmarshal(body, &token)
+		if err != nil {
+			log.Println("Unable to marshal the nebulous token response into token struct, the reported error was: " + err.Error())
+			return nebulousToken
+		}
+
+		nebulousToken = token.AccessToken
+		return nebulousToken
+	}
+
 func postJson() {
 	docs := getDocs("out.json")
 	deleteFile("nonExistingManufacturers.csv")
+	fmt.Println("deleted nonExistingManufacturers.csv")
+
 	createFile("nonExistingManufacturers.csv")
+	fmt.Println("created nonExistingManufacturers.csv")
+
 	deleteFile("Report.csv")
+	fmt.Println("deleted report.csv")
+
   createFile("Report.csv")
+	fmt.Println("created report.csv")
+
 	var link map[string]int
 	link = make(map[string]int)
 	f, err := os.OpenFile("nonExistingManufacturers.csv", os.O_WRONLY|os.O_APPEND, 0644)
@@ -240,19 +331,21 @@ func postJson() {
 		fmt.Println(s)
 		statCode := ""
 		bodyString := ""
-		idStr, _ := getSpecId(docs,s)
+		// idStr, _ := getSpecId(docs,s)
 		mJ, _ := json.Marshal(docs[s])
-		fmt.Println(idStr)
+		nebulousToken:=ObtainNebulousToken()
+		statCode,bodyString=postRecord(mJ,nebulousToken)
+		// fmt.Println(idStr)
 		// if idStr != "" {
 		// 		statCode, bodyString = patchRecord(idStr, mJ)
 		// } else {
 		// 	statCode, bodyString = postRecord(mJ)
 		// }
-		if idStr == ""{
-			statCode, bodyString = postRecord(mJ)
-		}
-		fmt.Println(statCode)
-		fmt.Println(bodyString)
+		// if idStr == ""{
+		// 	statCode, bodyString = postRecord(mJ)
+		// }
+		// fmt.Println(statCode)
+		// fmt.Println(bodyString)
 		// if bodyString== strings.Replace("{'error':true,'msg':{'general.manufacturer':['Manufacturer was not found.']}}","'","\"",-1) {
 		// 	var csvData []string
 		// 	csvData = append(csvData, statCode)
@@ -301,34 +394,29 @@ func countStatus(statCode string, link map[string]int) map[string]int {
 	return link
 }
 
-// func patchRecord(idStr string, mJ []byte) (string, string) {
-// 	statCode := ""
-// 	patchEndPoint := url + "/" + idStr
-// 	req, err := http.NewRequest("PATCH", patchEndPoint, bytes.NewBuffer(mJ))
-// 	req.Header.Set("Content-Type", "application/json")
-// 	client := &http.Client{}
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
-// 	bodyString := string(bodyBytes)
-// 	statCode = resp.Status
-// 	return statCode, bodyString
-// }
-
-func postRecord(mJ []byte) (string, string) {
+func postRecord(mJ []byte,nebulousToken string) (string, string) {
+	fmt.Println("Im in post record function")
 	statCode := ""
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(mJ))
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println(url)
+	fmt.Println(nebulousToken)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", nebulousToken)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("In if err loop")
+		return "error","no patch"
+	}
+	fmt.Println("Response Status from Discordia:", resp.Status)
 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
 	bodyString := string(bodyBytes)
 	statCode = resp.Status
+	fmt.Println(statCode)
 	return statCode, bodyString
 }
 
@@ -347,54 +435,54 @@ func getDocs(path string) Docs{
 	return d
 }
 
-func getSpecId(docs Docs, s int) (string, string) {
-	manufacturer := docs[s].General.Manufacturer
-	modelName := docs[s].General.Model
-	year := docs[s].General.Year
-	category := docs[s].General.Category
-	idStr := ""
-	updatedAt := ""
-	urlString := url + "?manufacturer=" + manufacturer + "&model=" + modelName + "&year=" + strconv.Itoa(year) + "&category=" + category
-	urlStringFinal := strings.Replace(urlString, " ", "%20", -1)
-	resp, err := http.Get(urlStringFinal)
-	if err != nil {
-		fmt.Println(err)
-	}
-	if resp != nil {
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			panic(err)
-		}
-		var p PatchId
-		err = json.Unmarshal(body, &p)
-		if err != nil {
-			panic(err)
-		}
-		if len(p.Data) != 0 {
-			idStr = p.Data[0].Id
-			urlGetUpdatedAt := url + "/" + idStr
-			resp, err = http.Get(urlGetUpdatedAt)
-			if err != nil {
-				panic(err)
-			}
-			if resp != nil {
-				defer resp.Body.Close()
-				body, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					panic(err)
-				}
-				var p PatchUpdatedAt
-				err = json.Unmarshal(body, &p)
-				if err != nil {
-					panic(err)
-				}
-				updatedAt = p.Data.UpdatedAt
-			}
-		}
-	}
-	return idStr, updatedAt
-}
+// func getSpecId(docs Docs, s int) (string, string) {
+// 	manufacturer := docs[s].General.Manufacturer
+// 	modelName := docs[s].General.Model
+// 	year := docs[s].General.Year
+// 	category := docs[s].General.Category
+// 	idStr := ""
+// 	updatedAt := ""
+// 	urlString := url + "?manufacturer=" + manufacturer + "&model=" + modelName + "&year=" + strconv.Itoa(year) + "&category=" + category
+// 	urlStringFinal := strings.Replace(urlString, " ", "%20", -1)
+// 	resp, err := http.Get(urlStringFinal)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 	}
+// 	if resp != nil {
+// 		defer resp.Body.Close()
+// 		body, err := ioutil.ReadAll(resp.Body)
+// 		if err != nil {
+// 			panic(err)
+// 		}
+// 		var p PatchId
+// 		err = json.Unmarshal(body, &p)
+// 		if err != nil {
+// 			panic(err)
+// 		}
+// 		if len(p.Data) != 0 {
+// 			idStr = p.Data[0].Id
+// 			urlGetUpdatedAt := url + "/" + idStr
+// 			resp, err = http.Get(urlGetUpdatedAt)
+// 			if err != nil {
+// 				panic(err)
+// 			}
+// 			if resp != nil {
+// 				defer resp.Body.Close()
+// 				body, err := ioutil.ReadAll(resp.Body)
+// 				if err != nil {
+// 					panic(err)
+// 				}
+// 				var p PatchUpdatedAt
+// 				err = json.Unmarshal(body, &p)
+// 				if err != nil {
+// 					panic(err)
+// 				}
+// 				updatedAt = p.Data.UpdatedAt
+// 			}
+// 		}
+// 	}
+// 	return idStr, updatedAt
+// }
 
 
 func in_array(val string, array []string) (exists bool) {
@@ -415,7 +503,7 @@ func getCtFromTrimsFile() []CrsTrims{
 	fmt.Println("getCtFromTrimsFile");
 	ct := []CrsTrims{}
 
-	trimsFile, err := os.Open("Data_2019_01_17/PS_Trims.csv")
+	trimsFile, err := os.Open("Data_2019_03_07/PS_Trims.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -434,7 +522,7 @@ func getCfFromFeaturesFile() []CrsFeatures{
 	fmt.Println("getCfFromFeaturesFile");
 	cf := []CrsFeatures{}
 
-	featuresFile, err := os.Open("Data_2019_01_17/PS_Features.csv")
+	featuresFile, err := os.Open("Data_2019_03_07/PS_Features.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -452,7 +540,7 @@ func getCfFromFeaturesFile() []CrsFeatures{
 func getCpFromPackagesFile() []CrsPackages{
 	cp := []CrsPackages{}
 
-	packagesFile, err := os.Open("Data_2019_01_17/pkgs.csv")
+	packagesFile, err := os.Open("Data_2019_03_07/pkgs.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -471,7 +559,7 @@ func getCsdFromSampleDataFile() []CrsSample{
 	fmt.Println("getCsdFromSampleDataFile");
 	csd := []CrsSample{}
 
-	sampleFile, err := os.Open("Data_2019_01_17/PS_SampleData.csv")
+	sampleFile, err := os.Open("Data_2019_03_07/PS_SampleData.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -491,7 +579,7 @@ func getCoFromOptionsFile() []CrsOptions{
 	fmt.Println("getCoFromOptionsFile");
 	co := []CrsOptions{}
 
-	optionsFile, err := os.Open("Data_2019_01_17/PS_Options.csv")
+	optionsFile, err := os.Open("Data_2019_03_07/PS_Options.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -510,7 +598,7 @@ func getCpgFromPhotoGalleryFile() []CrsPhotoGallery{
 	fmt.Println("getCpgFromPhotoGalleryFile");
 	cpg := []CrsPhotoGallery{}
 
-	PhotoGalleryFile, err := os.Open("Data_2019_01_17/photogallery.csv")
+	PhotoGalleryFile, err := os.Open("Data_2019_03_07/photogallery.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -529,7 +617,7 @@ func getCsFromSpecsFile() []CrsSpecs{
 	fmt.Println("getCsFromSpecsFile");
 	cs := []CrsSpecs{}
 
-	specsFile, err := os.Open("Data_2019_01_17/PS_Specs_withpkgs.csv")
+	specsFile, err := os.Open("Data_2019_03_07/PS_Specs_withpkgs.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -549,7 +637,7 @@ func getCaFromCategoryMappingFile() []CrsCategories{
 	fmt.Println("getCaFromCategoriesAvailableFile");
 	ca := []CrsCategories{}
 
-	CategoryMappingFile, err := os.Open("Data_2019_01_17/CategoryMapping.csv")
+	CategoryMappingFile, err := os.Open("Data_2019_03_07/CategoryMapping.csv")
  	if err != nil {
  		fmt.Println(err)
  	}
@@ -647,8 +735,8 @@ func buildJson(){
 			fmt.Println(t)
 			fmt.Println("trim id is" , trimId)
 			fmt.Println("\n")
-			d[t].Meta.Source = "Powersports"
-			// d[t].Meta.Test = "Test Powersports-sneha-2019-01-24"
+			d[t].Meta.Source = "CRS"
+			d[t].Meta.Test = "Test Powersports-sneha-2019-03-07"
 			d[t].General.Manufacturer = ct[t].ManufacturerName
 			d[t].General.Model = ct[t].ModelName + " "+ct[t].TrimName
 			d[t].General.Year = int(math.Round(ct[t].ModelYear))
@@ -693,7 +781,7 @@ func buildJson(){
 					if csd[sd].AttributeName == "Photo Name" {
 							image_name = csd[sd].Value
 							folder_name = "800x400"
-							imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/CRS+Datafeed+powersport+images+2019-01-04/"+folder_name+"/"+image_name
+							imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/"+folder_name+"/"+image_name
 	 						img := Image{}
 	 						img.Src=imgLinkAWS
 							img.Src=strings.Replace(imgLinkAWS," ","%20",-1)
@@ -703,7 +791,7 @@ func buildJson(){
 					 if csd[sd].AttributeName == "Photo Name (Floorplan)"{
 					 	 image_name = csd[sd].Value
 					 	 folder_name = "Floorplan800"
-					 	 imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/CRS+Datafeed+powersport+images+2019-01-04/"+folder_name+"/"+image_name
+					 	 imgLinkAWS := "https://s3.amazonaws.com/cws-cdn-east/crs-ps-images/"+folder_name+"/"+image_name
 					 	 img := Image{}
 					 	 img.Src=imgLinkAWS
 					 	 img.Src=strings.Replace(imgLinkAWS," ","%20",-1)
@@ -1137,6 +1225,7 @@ func getPackageName(package_id string) string{
 		return package_name
 }
 func main() {
+	getAPI()
 	buildJson()
 	postJson()
 }
