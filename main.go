@@ -23,7 +23,7 @@ type Docs []struct {
 	ProductUri string `json:"productUri"`
 	Meta       struct {
 		Source string `json:"source"`
-		Test string `json:"test"`
+		// Test string `json:"test"`
 	} `json:"meta"`
 	General    struct {
 		Manufacturer string   `json:"manufacturer"`
@@ -193,7 +193,7 @@ type ManufacturersUpdated struct{
 	ManufacturerName string `csv:"ManufacturerName"`
 
 }
-// var url = "https://api.stage.cwsplatform.com/specs"
+
 // Token ...
 type Token struct {
 	AccessToken string `json:"access_token"`
@@ -242,7 +242,7 @@ func getAPI() string{
 			if apiType == "stage"{
 				url = "http://127.0.0.1:5000/v1/model/"
 			}else if apiType == "prod"{
-				url = "https://discordia.blackbook.tilabs.tech/v1/models"
+				url = "https://discordia.blackbook.tilabs.tech/v1/model/"
 			}
 		}else{
 			err :=errors.New("Please enter valid input")
@@ -254,10 +254,16 @@ func getAPI() string{
 	}
 
 	func ObtainNebulousToken() string {
-		url := os.Getenv("NEB_TOKEN_ENDPOINT")
+		// url := os.Getenv("NEB_TOKEN_ENDPOINT")
+		//
+		// clientID := os.Getenv("NEB_CLIENT_ID")
+		// clientSecret := os.Getenv("NEB_CLIENT_SECRET")
 
-		clientID := os.Getenv("NEB_CLIENT_ID")
-		clientSecret := os.Getenv("NEB_CLIENT_SECRET")
+		url := "https://apis.traderonline.com/vLatest/token"
+		fmt.Println("token endpoint url is",url)
+		clientID := "blackbook"
+		clientSecret := "#ZoDDn08ZlQjncScAfs1?3URoX8JPDZN"
+	 fmt.Println("clientsecret is",clientSecret)
 
 		nebulousToken := ""
 
@@ -294,10 +300,13 @@ func getAPI() string{
 		}
 
 		nebulousToken = token.AccessToken
+		fmt.Println(nebulousToken)
+		fmt.Println("In obtain token function")
 		return nebulousToken
 	}
 
 func postJson() {
+	nebulousToken:=ObtainNebulousToken()
 	docs := getDocs("out.json")
 	deleteFile("nonExistingManufacturers.csv")
 	fmt.Println("deleted nonExistingManufacturers.csv")
@@ -333,7 +342,15 @@ func postJson() {
 		bodyString := ""
 		// idStr, _ := getSpecId(docs,s)
 		mJ, _ := json.Marshal(docs[s])
-		nebulousToken:=ObtainNebulousToken()
+
+		fmt.Println("Token for model in post json", nebulousToken)
+
+		// This check if the model is already existing in discordia.
+		checkStatus:=checkIfRecordExists(docs,s,nebulousToken)
+		fmt.Println("Token print loop in post json",s)
+
+		// If model does not exist then it posts it and repsonse is added in the report file. Otherwise skips.
+   if (checkStatus==false){
 		statCode,bodyString=postRecord(mJ,nebulousToken)
 		// fmt.Println(idStr)
 		// if idStr != "" {
@@ -366,7 +383,17 @@ func postJson() {
 				writer.Flush()
 			}
 		link = countStatus(statCode, link)
+	}else{
+		statCode="500 Duplicate"
+		bodyString=docs[s].General.Model+ " already exists in discordia. So skipped."
+		var csvData []string
+		csvData = append(csvData, docs[s].General.Manufacturer,docs[s].General.Model)
+		csvData = append(csvData, bodyString)
+		writer.Write(csvData)
+		writer.Flush()
+		link = countStatus(statCode, link)
 	}
+}
 	var csvData1 []string
 	csvData1 = append(csvData1, "Report")
 	writer1.Write(csvData1)
@@ -394,6 +421,45 @@ func countStatus(statCode string, link map[string]int) map[string]int {
 	return link
 }
 
+func checkIfRecordExists(docs Docs,s int,nebulousToken string) bool{
+	type GetError struct {
+		Error  string `json:"error"`
+	}
+	showModel:="https://discordia.blackbook.tilabs.tech/v1/models"
+	man:=docs[s].General.Manufacturer
+	cat:=docs[s].General.Category
+	subcat:=docs[s].General.Subcategory
+	year:=docs[s].General.Year
+	model:=docs[s].General.Model
+	showModelUrl:=showModel+"?manufacturer="+man+"&category="+cat+"&subcategory="+subcat+"&year="+strconv.Itoa(year)+"&model="+model
+	showModelUrl=strings.Replace(showModelUrl, " ", "%20", -1)
+
+	// try to get a record if exists
+	getReq, getErr := http.NewRequest("GET", showModelUrl,nil)
+	if getErr != nil {
+		panic(getErr)
+	}
+	getReq.Header.Add("Authorization", nebulousToken)
+	getResp, getErr := http.DefaultClient.Do(getReq)
+	if getErr != nil {
+		fmt.Println(getErr)
+		fmt.Println("error","could not get record")
+	}
+	body, err := ioutil.ReadAll(getResp.Body)
+	if err != nil {
+		panic(getErr)
+	}
+
+	var er GetError
+	json.Unmarshal(body,&er)
+	if(er.Error==""){
+		return true
+	}else{
+		return false
+	}
+
+}
+
 func postRecord(mJ []byte,nebulousToken string) (string, string) {
 	fmt.Println("Im in post record function")
 	statCode := ""
@@ -403,10 +469,11 @@ func postRecord(mJ []byte,nebulousToken string) (string, string) {
 	}
 	fmt.Println(url)
 	fmt.Println(nebulousToken)
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Authorization", nebulousToken)
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	// client := &http.Client{}
+	// resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Println(err)
 		fmt.Println("In if err loop")
@@ -503,7 +570,7 @@ func getCtFromTrimsFile() []CrsTrims{
 	fmt.Println("getCtFromTrimsFile");
 	ct := []CrsTrims{}
 
-	trimsFile, err := os.Open("Data_2019_03_07/PS_Trims.csv")
+	trimsFile, err := os.Open("Data_2019_03_01/PS_Trims.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -522,7 +589,7 @@ func getCfFromFeaturesFile() []CrsFeatures{
 	fmt.Println("getCfFromFeaturesFile");
 	cf := []CrsFeatures{}
 
-	featuresFile, err := os.Open("Data_2019_03_07/PS_Features.csv")
+	featuresFile, err := os.Open("Data_2019_03_01/PS_Features.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -540,7 +607,7 @@ func getCfFromFeaturesFile() []CrsFeatures{
 func getCpFromPackagesFile() []CrsPackages{
 	cp := []CrsPackages{}
 
-	packagesFile, err := os.Open("Data_2019_03_07/pkgs.csv")
+	packagesFile, err := os.Open("Data_2019_03_01/pkgs.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -559,7 +626,7 @@ func getCsdFromSampleDataFile() []CrsSample{
 	fmt.Println("getCsdFromSampleDataFile");
 	csd := []CrsSample{}
 
-	sampleFile, err := os.Open("Data_2019_03_07/PS_SampleData.csv")
+	sampleFile, err := os.Open("Data_2019_03_01/PS_SampleData.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -579,7 +646,7 @@ func getCoFromOptionsFile() []CrsOptions{
 	fmt.Println("getCoFromOptionsFile");
 	co := []CrsOptions{}
 
-	optionsFile, err := os.Open("Data_2019_03_07/PS_Options.csv")
+	optionsFile, err := os.Open("Data_2019_03_01/PS_Options.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -598,7 +665,7 @@ func getCpgFromPhotoGalleryFile() []CrsPhotoGallery{
 	fmt.Println("getCpgFromPhotoGalleryFile");
 	cpg := []CrsPhotoGallery{}
 
-	PhotoGalleryFile, err := os.Open("Data_2019_03_07/photogallery.csv")
+	PhotoGalleryFile, err := os.Open("Data_2019_03_01/photogallery.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -617,7 +684,7 @@ func getCsFromSpecsFile() []CrsSpecs{
 	fmt.Println("getCsFromSpecsFile");
 	cs := []CrsSpecs{}
 
-	specsFile, err := os.Open("Data_2019_03_07/PS_Specs_withpkgs.csv")
+	specsFile, err := os.Open("Data_2019_03_01/PS_Specs_withpkgs.csv")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -637,7 +704,7 @@ func getCaFromCategoryMappingFile() []CrsCategories{
 	fmt.Println("getCaFromCategoriesAvailableFile");
 	ca := []CrsCategories{}
 
-	CategoryMappingFile, err := os.Open("Data_2019_03_07/CategoryMapping.csv")
+	CategoryMappingFile, err := os.Open("Data_2019_03_01/CategoryMapping.csv")
  	if err != nil {
  		fmt.Println(err)
  	}
@@ -736,7 +803,7 @@ func buildJson(){
 			fmt.Println("trim id is" , trimId)
 			fmt.Println("\n")
 			d[t].Meta.Source = "CRS"
-			d[t].Meta.Test = "Test Powersports-sneha-2019-03-07"
+			// d[t].Meta.Test = "Test Powersports-sneha-2019-03-07"
 			d[t].General.Manufacturer = ct[t].ManufacturerName
 			d[t].General.Model = ct[t].ModelName + " "+ct[t].TrimName
 			d[t].General.Year = int(math.Round(ct[t].ModelYear))
